@@ -4,6 +4,7 @@ import {
 	SearchIcon,
 	ClapperboardIcon,
 	WandSparklesIcon,
+	ListVideoIcon,
 	LifeBuoyIcon,
 	BookOpenIcon,
 } from "lucide-react";
@@ -39,6 +40,11 @@ export const navGroups: SidebarNavGroup[] = [
 	{
 		label: "Production",
 		items: [
+			{
+				title: "Jobs",
+				path: "/jobs",
+				icon: <ListVideoIcon />,
+			},
 			{
 				title: "Clips",
 				path: "/clips",

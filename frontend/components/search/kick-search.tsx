@@ -32,10 +32,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { DashboardCard } from "@/components/dashboard-card";
 import { formatDuration } from "@/lib/data";
-import { createJob, searchKickVideos, type KickVideo } from "@/lib/api";
+import {
+	createJob,
+	searchKickVideos,
+	type KickVideo,
+	type ProcessingMode,
+} from "@/lib/api";
 import {
 	AlertCircleIcon,
 	ClockIcon,
+	CloudIcon,
+	LaptopIcon,
 	SearchIcon,
 	WandSparklesIcon,
 } from "lucide-react";
@@ -60,6 +67,7 @@ function formatVodDate(value: string | null): string {
 export function KickSearch() {
 	const [query, setQuery] = useState("");
 	const [months, setMonths] = useState("3");
+	const [processingMode, setProcessingMode] = useState<ProcessingMode>("local");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [hasSearched, setHasSearched] = useState(false);
@@ -118,10 +126,17 @@ export function KickSearch() {
 			const job = await createJob({
 				vod_url: video.url,
 				vod_title: video.title,
+				processing_mode: processingMode,
 			});
 			setClipStates((s) => ({ ...s, [video.id]: "queued" }));
 			toast.success("Clipping job queued", {
 				description: `Job ${job.job_id.slice(0, 8)} — ${video.title.slice(0, 48)}`,
+				action: {
+					label: "View jobs",
+					onClick: () => {
+						window.location.href = "/jobs";
+					},
+				},
 			});
 		} catch (err) {
 			setClipStates((s) => ({ ...s, [video.id]: "idle" }));
@@ -160,6 +175,26 @@ export function KickSearch() {
 							<SelectItem value="3">Last 3 months</SelectItem>
 							<SelectItem value="6">Last 6 months</SelectItem>
 							<SelectItem value="12">Last 12 months</SelectItem>
+						</SelectGroup>
+					</SelectContent>
+				</Select>
+				<Select
+					onValueChange={(v) => setProcessingMode(v as ProcessingMode)}
+					value={processingMode}
+				>
+					<SelectTrigger className="sm:w-44">
+						<SelectValue placeholder="Processing" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectGroup>
+							<SelectItem value="local">
+								<LaptopIcon className="size-3.5" />
+								Process locally
+							</SelectItem>
+							<SelectItem value="cloud">
+								<CloudIcon className="size-3.5" />
+								Process on cloud
+							</SelectItem>
 						</SelectGroup>
 					</SelectContent>
 				</Select>

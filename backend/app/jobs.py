@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
+from .dispatch import dispatch_remote_job, remote_processing_available
 from .pipeline.analyze import analyze_transcript
 from .pipeline.audio import extract_audio_chunks
 from .pipeline.cut import cut_raw_clips
@@ -10,13 +11,34 @@ from .pipeline.transcribe import transcribe_audio_chunks
 from .schemas import ClipCandidate, CreateJobRequest, JobRecord, JobStatus
 from .settings import get_settings
 from .storage import job_store
+from .storage_backends import get_storage_backend
 
 
 executor = ThreadPoolExecutor(max_workers=1)
 
 
 def create_job(request: CreateJobRequest) -> JobRecord:
-    job = job_store.create_job(request.vod_url, request.vod_title, request.clip_count)
+    settings = get_settings()
+    mode = request.processing_mode or settings.default_processing_mode
+
+    # Cloud mode: hand the job off to the remote Vultr VPS worker and mirror
+    # its job record locally so the frontend can keep polling this host.
+    if mode == "cloud" and not settings.is_worker and remote_processing_available():
+        remote = dispatch_remote_job(request)
+        job = job_store.create_job(
+            request.vod_url, request.vod_title, request.clip_count, processing_mode="cloud"
+        )
+        job_store.update(
+            job.job_id,
+            status=JobStatus.queued,
+            message="Dispatched to cloud worker",
+            artifacts={"remote_job_id": remote.get("job_id"), "remote": remote},
+        )
+        return job
+
+    job = job_store.create_job(
+        request.vod_url, request.vod_title, request.clip_count, processing_mode="local"
+    )
     executor.submit(run_job, job.job_id)
     return job
 
@@ -70,11 +92,17 @@ def run_job(job_id: str) -> None:
 
         job_store.update(job_id, status=JobStatus.cutting, progress=0.88, message="Cutting raw MP4 clips")
         clips = cut_raw_clips(video_path, candidates.get("clips", []), job_dir / "clips")
-        results = [
-            ClipCandidate(**clip, clip_url=f"/api/jobs/{job_id}/clips/{clip['filename']}" if clip.get("filename") else None)
-            for clip in clips
-            if clip.get("filename")
-        ]
+
+        # Persist each clip through the configured storage backend (local
+        # disk or Vultr Object Storage) and record the URL to serve/preview.
+        storage = get_storage_backend()
+        results = []
+        for clip in clips:
+            filename = clip.get("filename")
+            if not filename:
+                continue
+            clip_url = storage.store_clip(job_id, job_dir / "clips" / filename)
+            results.append(ClipCandidate(**clip, clip_url=clip_url))
 
         job_store.update(
             job_id,

@@ -1,7 +1,10 @@
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+
+ProcessingMode = Literal["local", "cloud"]
 
 
 class JobStatus(StrEnum):
@@ -34,6 +37,9 @@ class CreateJobRequest(BaseModel):
     vod_url: str
     vod_title: str
     clip_count: int = Field(default=5, ge=1, le=25)
+    # Run the pipeline in-process ("local") or hand off to the remote
+    # Vultr VPS worker ("cloud"). Defaults to the server's configured mode.
+    processing_mode: ProcessingMode | None = None
 
 
 class CreateJobResponse(BaseModel):
@@ -63,6 +69,7 @@ class JobRecord(BaseModel):
     vod_url: str
     vod_title: str
     clip_count: int
+    processing_mode: ProcessingMode = "local"
     created_at: str
     updated_at: str
     error: str | None = None
@@ -72,3 +79,45 @@ class JobRecord(BaseModel):
 
 class JobsResponse(BaseModel):
     jobs: list[JobRecord]
+
+
+# ── TikTok publishing ────────────────────────────────────────────────
+
+
+class TikTokPublishRequest(BaseModel):
+    # The clip to publish, identified by job + filename.
+    job_id: str
+    filename: str
+    # Per-account OAuth access token. TODO(user): once token storage is
+    # wired up, look this up by `account` instead of passing it in.
+    access_token: str
+    account: str | None = None
+    caption: str = ""
+    mode: Literal["direct", "draft"] = "draft"
+    privacy_level: Literal[
+        "PUBLIC_TO_EVERYONE",
+        "MUTUAL_FOLLOW_FRIENDS",
+        "FOLLOWER_OF_CREATOR",
+        "SELF_ONLY",
+    ] = "SELF_ONLY"
+    disable_comment: bool = False
+    disable_duet: bool = False
+    disable_stitch: bool = False
+
+
+class TikTokPublishResponse(BaseModel):
+    publish_id: str
+    status: str
+    mode: str
+
+
+# ── Integration / config status (for the frontend) ───────────────────
+
+
+class ConfigResponse(BaseModel):
+    openai_configured: bool
+    tiktok_configured: bool
+    vultr_configured: bool
+    worker_configured: bool
+    default_processing_mode: ProcessingMode
+    storage_backend: str

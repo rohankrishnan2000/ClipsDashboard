@@ -17,7 +17,13 @@ class JobStore:
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
         self._lock = Lock()
 
-    def create_job(self, vod_url: str, vod_title: str, clip_count: int) -> JobRecord:
+    def create_job(
+        self,
+        vod_url: str,
+        vod_title: str,
+        clip_count: int,
+        processing_mode: str = "local",
+    ) -> JobRecord:
         now = self._now()
         job = JobRecord(
             job_id=uuid4().hex[:12],
@@ -27,6 +33,7 @@ class JobStore:
             vod_url=vod_url,
             vod_title=vod_title,
             clip_count=clip_count,
+            processing_mode=processing_mode,  # type: ignore[arg-type]
             created_at=now,
             updated_at=now,
         )
