@@ -1,0 +1,1 @@
+"""Clipping Bot backend package."""

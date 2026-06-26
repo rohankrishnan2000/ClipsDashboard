@@ -1,0 +1,1 @@
+"""Reusable clipping pipeline steps."""
